@@ -80,11 +80,14 @@ export default function Upload() {
   const handleMerge = async e => {
     e.preventDefault()
 
-    let canvas = document.createElement('canvas');
-    let ctx = canvas.getContext('2d');
-
     let background = new Image();
     background.src = imageUrl;
+
+    let sticker = new Image();
+    sticker.src = selectedStickerUrl;
+
+    let canvas = document.createElement('canvas');
+    let ctx = canvas.getContext('2d');
 
     canvas.width = background.naturalWidth;
     canvas.height = background.naturalHeight;
@@ -93,10 +96,7 @@ export default function Upload() {
 
     // draw stickers on top of poses
     poseInfo.map(pose => {
-      let sticker = new Image();
-      sticker.src = selectedStickerUrl;
-
-      let stickerScale = pose.poseHeight / stickerSize;
+      const stickerScale = pose.poseHeight / stickerSize;
       ctx.drawImage(
         sticker,
         pose.xEye - stickerSize / 2 * stickerScale, // center the sticker
