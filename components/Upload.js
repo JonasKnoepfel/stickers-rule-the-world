@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
-import mergeImages from 'merge-images'
-import StickerPanel from './stickerPanel'
+import StickerPanel from './StickerPanel'
 import * as posenet from '@tensorflow-models/posenet'
+
+const stickerSize = 500;
+const stickerEyePosY = 55;
 
 async function estimateMultiplePosesOnImage(imageElement) {
   // load the model
@@ -18,20 +20,27 @@ async function estimateMultiplePosesOnImage(imageElement) {
   return poses
 }
 
+function fileTooBig(file) {
+  if (file.size > 300000) {
+    return true
+  }
+  return false
+}
+
 export default function Upload() {
-  const [image, setImage] = useState()
-  const [sticker, setSticker] = useState()
+  const [imageUrl, setImageurl] = useState()
+  const [selectedStickerUrl, setSelectedStickerUrl] = useState()
   const [poseInfo, setPoseInfo] = useState()
   const [sizeAlert, setSizeAlert] = useState(false)
   const [instructionAlert, setInstructionAlert] = useState(false)
 
   const handleChange = e => {
     if (e.target.files.length) {
-      if (fileToBig(e.target.files[0])) {
+      if (fileTooBig(e.target.files[0])) {
         setSizeAlert(true)
       } else {
         setSizeAlert(false)
-        setImage(URL.createObjectURL(e.target.files[0]))
+        setImageurl(URL.createObjectURL(e.target.files[0]))
       }
     }
   }
@@ -55,7 +64,7 @@ export default function Upload() {
         const xEye = (pose.keypoints[1].position.x + pose.keypoints[2].position.x) / 2 * scaleFactor;
         const yEye = (pose.keypoints[1].position.y + pose.keypoints[2].position.y) / 2 * scaleFactor;
         const poseHeight =
-          ((pose.keypoints[16].position.y + pose.keypoints[15].position.y) / 2 - yEye) * scaleFactor;
+          (pose.keypoints[16].position.y + pose.keypoints[15].position.y) / 2 * scaleFactor - yEye;
         return {
           xEye: xEye,
           yEye: yEye,
@@ -70,17 +79,34 @@ export default function Upload() {
 
   const handleMerge = async e => {
     e.preventDefault()
-    const poseSrc = poseInfo.map(function (pose) {
-      return {
-        src: sticker,
-        x: pose.xEye - 250, // translate so Ketnipz eyes somewhat line up with pose eyes
-        y: pose.yEye - 55,
-      }
+
+    let canvas = document.createElement('canvas');
+    let ctx = canvas.getContext('2d');
+
+    let background = new Image();
+    background.src = imageUrl;
+
+    canvas.width = background.naturalWidth;
+    canvas.height = background.naturalHeight;
+
+    ctx.drawImage(background, 0, 0);
+
+    // draw stickers on top of poses
+    poseInfo.map(pose => {
+      let sticker = new Image();
+      sticker.src = selectedStickerUrl;
+
+      let stickerScale = pose.poseHeight / stickerSize;
+      ctx.drawImage(
+        sticker,
+        pose.xEye - stickerSize / 2 * stickerScale, // center the sticker
+        pose.yEye - stickerEyePosY * stickerScale, // move upward so Ketnipz eyes somewhat line up with pose eyes
+        pose.poseHeight,
+        pose.poseHeight
+      );
     })
-    console.log(poseSrc)
-    mergeImages([{ src: image, x: 0, y: 0 }].concat(poseSrc)).then(
-      b64 => (document.querySelector('img').src = b64)
-    )
+
+    document.getElementById('preview').src = canvas.toDataURL();
   }
 
   return (
@@ -125,9 +151,9 @@ export default function Upload() {
           </span>
         </div>
       )}
-      {image ? (
+      {imageUrl ? (
         <div className="block md:w-3/6 lg:w-2/6 mx-auto my-4">
-          <img src={image} id="preview" alt="preview" className="mt-0" />
+          <img src={imageUrl} id="preview" alt="preview" className="mt-0" />
         </div>
       ) : (
         <>
@@ -157,7 +183,7 @@ export default function Upload() {
         </>
       )}
       <br />
-      {image && !poseInfo && (
+      {imageUrl && !poseInfo && (
         <div className="block mx-auto max-w-md ">
           <button
             onClick={handleUpload}
@@ -169,10 +195,10 @@ export default function Upload() {
       )}
       {poseInfo && (
         <div className="block max-w-2xl m-auto">
-          <StickerPanel onStickerSelect={sticker => setSticker(sticker)} />
+          <StickerPanel onStickerSelect={sticker => setSelectedStickerUrl(sticker)} />
         </div>
       )}
-      {sticker && (
+      {selectedStickerUrl && (
         <div className="block m-4">
           <button
             onClick={handleMerge}
@@ -184,11 +210,4 @@ export default function Upload() {
       )}
     </div>
   )
-}
-
-function fileToBig(file) {
-  if (file.size > 300000) {
-    return true
-  }
-  return false
 }
